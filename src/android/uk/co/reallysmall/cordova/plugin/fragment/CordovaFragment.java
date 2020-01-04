@@ -18,29 +18,9 @@
 */
 package uk.co.reallysmall.cordova.plugin.fragment;
 
-import android.app.AlertDialog;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.res.Configuration;
-import android.graphics.Color;
-import android.media.AudioManager;
-import android.net.http.SslError;
-import android.os.Bundle;
-import android.app.Fragment;
-import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.WindowManager;
-import android.webkit.SslErrorHandler;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.FrameLayout;
+import java.util.ArrayList;
+import java.util.Locale;
 
-import org.apache.cordova.BuildConfig;
 import org.apache.cordova.ConfigXmlParser;
 import org.apache.cordova.CordovaInterfaceImpl;
 import org.apache.cordova.CordovaPreferences;
@@ -50,13 +30,29 @@ import org.apache.cordova.CordovaWebViewImpl;
 import org.apache.cordova.LOG;
 import org.apache.cordova.PluginEntry;
 import org.apache.cordova.PluginManager;
-import org.apache.cordova.engine.SystemWebViewClient;
-import org.apache.cordova.engine.SystemWebViewEngine;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.Locale;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.annotation.SuppressLint;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.media.AudioManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.support.v4.app.Fragment;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 
 /**
  * This class is the main Android activity that represents the Cordova
@@ -90,21 +86,26 @@ import java.util.Locale;
  *
  */
 public class CordovaFragment extends Fragment {
-
     public static String TAG = "CordovaFragment";
 
     // The webview for our app
     protected CordovaWebView appView;
 
-
     public CordovaWebView getAppView() {
         return appView;
     }
+
+    private static int ACTIVITY_STARTING = 0;
+    private static int ACTIVITY_RUNNING = 1;
+    private static int ACTIVITY_EXITING = 2;
 
     // Keep app running when pause is received. (default = true)
     // If true, then the JavaScript and native code continue to run in the background
     // when another application (activity) is started.
     protected boolean keepRunning = true;
+
+    // Flag to keep immersive mode if set to fullscreen
+    protected boolean immersiveMode;
 
     // Read from config.xml:
     protected CordovaPreferences preferences;
@@ -138,42 +139,41 @@ public class CordovaFragment extends Fragment {
      */
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // need to activate preferences before super.onCreate to avoid "requestFeature() must be called before adding content" exception
+        loadConfig();
+
+        String logLevel = preferences.getString("loglevel", "ERROR");
+        LOG.setLogLevel(logLevel);
+
         LOG.i(TAG, "Apache Cordova native platform version " + CordovaWebView.CORDOVA_VERSION + " is starting");
         LOG.d(TAG, "CordovaActivity.onCreate()");
 
-        // need to activate preferences before super.onCreate to avoid "requestFeature() must be called before adding content" exception
-        loadConfig();
-        if(getArguments() != null){
-            launchUrl = getArguments().getString("url");
-        }
-
-        Log.d(TAG, " launchURL : "+launchUrl);
-
-        /**
-        if(!preferences.getBoolean("ShowTitle", false))
-        {
+        if (!preferences.getBoolean("ShowTitle", false)) {
             getActivity().getWindow().requestFeature(Window.FEATURE_NO_TITLE);
         }
-        */
-        if(preferences.getBoolean("SetFullscreen", false))
-        {
-            Log.d(TAG, "The SetFullscreen configuration is deprecated in favor of Fullscreen, and will be removed in a future version.");
-            getActivity().getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        } else if (preferences.getBoolean("Fullscreen", false)) {
-            getActivity().getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+        if (preferences.getBoolean("SetFullscreen", false)) {
+            LOG.d(TAG, "The SetFullscreen configuration is deprecated in favor of Fullscreen, and will be removed in a future version.");
+            preferences.set("Fullscreen", true);
+        }
+        if (preferences.getBoolean("Fullscreen", false)) {
+            // NOTE: use the FullscreenNotImmersive configuration key to set the activity in a REAL full screen
+            // (as was the case in previous cordova versions)
+            if (!preferences.getBoolean("FullscreenNotImmersive", false)) {
+                immersiveMode = true;
+            } else {
+                getActivity().getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            }
         } else {
             getActivity().getWindow().setFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN,
                     WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
         }
 
-
         super.onCreate(savedInstanceState);
 
         cordovaInterface = makeCordovaInterface();
-        if(savedInstanceState != null)
-        {
+        if (savedInstanceState != null) {
             cordovaInterface.restoreInstanceState(savedInstanceState);
         }
     }
@@ -191,15 +191,6 @@ public class CordovaFragment extends Fragment {
         if ("media".equals(volumePref.toLowerCase(Locale.ENGLISH))) {
             getActivity().setVolumeControlStream(AudioManager.STREAM_MUSIC);
         }
-
-        if (BuildConfig.DEBUG) {
-            ((WebView)appView.getView()).setWebViewClient(new SystemWebViewClient((SystemWebViewEngine)appView.getEngine()) {
-                @Override
-                public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                    handler.proceed();
-                }
-            });
-        }
     }
 
     @SuppressWarnings("deprecation")
@@ -210,7 +201,7 @@ public class CordovaFragment extends Fragment {
         preferences.setPreferencesBundle(getActivity().getIntent().getExtras());
         launchUrl = parser.getLaunchUrl();
         pluginEntries = parser.getPluginEntries();
-//        Config.parser = parser;
+        Config.parser = parser;
     }
 
     //Suppressing warnings in AndroidStudio
@@ -225,18 +216,22 @@ public class CordovaFragment extends Fragment {
         setContentView(appView.getView());
 
         if (preferences.contains("BackgroundColor")) {
-            int backgroundColor = preferences.getInteger("BackgroundColor", Color.BLACK);
-            // Background of activity:
-            appView.getView().setBackgroundColor(backgroundColor);
+            try {
+                int backgroundColor = preferences.getInteger("BackgroundColor", Color.BLACK);
+                // Background of activity:
+                appView.getView().setBackgroundColor(backgroundColor);
+            }
+            catch (NumberFormatException e){
+                e.printStackTrace();
+            }
         }
 
         appView.getView().requestFocusFromTouch();
-
     }
 
     /**
      * Construct the default web view object.
-     *
+     * <p/>
      * Override this to customize the webview that is used.
      */
     protected CordovaWebView makeWebView() {
@@ -256,6 +251,7 @@ public class CordovaFragment extends Fragment {
             }
         };
     }
+
     /**
      * Load the url into the webview.
      */
@@ -271,6 +267,34 @@ public class CordovaFragment extends Fragment {
     }
 
     /**
+     * Called when the system is about to start resuming a previous activity.
+     */
+    @Override
+    public void onPause() {
+        super.onPause();
+        LOG.d(TAG, "Paused the activity.");
+
+        if (this.appView != null) {
+            // CB-9382 If there is an activity that started for result and main activity is waiting for callback
+            // result, we shoudn't stop WebView Javascript timers, as activity for result might be using them
+//            boolean keepRunning = this.keepRunning || this.cordovaInterface.activityResultCallback != null;
+            boolean keepRunning = this.keepRunning;
+            this.appView.handlePause(keepRunning);
+        }
+    }
+
+    /**
+     * Called when the activity receives a new intent
+     */
+//    @Override
+//    protected void onNewIntent(Intent intent) {
+//        super.onNewIntent(intent);
+//        //Forward to plugins
+//        if (this.appView != null)
+//            this.appView.onNewIntent(intent);
+//    }
+
+    /**
      * Called when the activity will start interacting with the user.
      */
     @Override
@@ -281,9 +305,11 @@ public class CordovaFragment extends Fragment {
         if (this.appView == null) {
             return;
         }
-        // Force window to have focus, so application always
-        // receive user input. Workaround for some devices (Samsung Galaxy Note 3 at least)
-        this.getActivity().getWindow().getDecorView().requestFocus();
+        if (! this.getActivity().getWindow().getDecorView().hasFocus()) {
+            // Force window to have focus, so application always
+            // receive user input. Workaround for some devices (Samsung Galaxy Note 3 at least)
+            this.getActivity().getWindow().getDecorView().requestFocus();
+        }
 
         this.appView.handleResume(this.keepRunning);
     }
@@ -319,33 +345,51 @@ public class CordovaFragment extends Fragment {
     /**
      * The final call you receive before your activity is destroyed.
      */
-     @Override
-     public void onDestroy() {
-         LOG.d(TAG, "CordovaActivity.onDestroy()");
-         if (getActivity() != null) {
-             super.onDestroy();
-         }
-
-         if (this.appView != null) {
-             appView.handleDestroy();
-         }
-     }
-
     @Override
-    public void startActivityForResult(Intent intent, int requestCode) {
+    public void onDestroy() {
+        LOG.d(TAG, "CordovaActivity.onDestroy()");
+        super.onDestroy();
+
+        if (this.appView != null) {
+            appView.handleDestroy();
+        }
+    }
+
+    /**
+     * Called when view focus is changed
+     */
+//    @SuppressLint("InlinedApi")
+//    @Override
+//    public void onWindowFocusChanged(boolean hasFocus) {
+//        super.onWindowFocusChanged(hasFocus);
+//        if (hasFocus && immersiveMode) {
+//            final int uiOptions = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+//                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+//                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+//                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+//                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+//                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+//
+//            getActivity().getWindow().getDecorView().setSystemUiVisibility(uiOptions);
+//        }
+//    }
+
+    @SuppressLint("NewApi")
+    @Override
+    public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
         // Capture requestCode here so that it is captured in the setActivityResultCallback() case.
         cordovaInterface.setActivityResultRequestCode(requestCode);
-        super.startActivityForResult(intent, requestCode);
+        super.startActivityForResult(intent, requestCode, options);
     }
 
     /**
      * Called when an activity you launched exits, giving you the requestCode you started it with,
      * the resultCode it returned, and any additional data from it.
      *
-     * @param requestCode       The request code originally supplied to startActivityForResult(),
-     *                          allowing you to identify who this result came from.
-     * @param resultCode        The integer result code returned by the child activity through its setResult().
-     * @param intent            An Intent, which can return result data to the caller (various data can be attached to Intent "extras").
+     * @param requestCode The request code originally supplied to startActivityForResult(),
+     *                    allowing you to identify who this result came from.
+     * @param resultCode  The integer result code returned by the child activity through its setResult().
+     * @param intent      An Intent, which can return result data to the caller (various data can be attached to Intent "extras").
      */
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
@@ -358,9 +402,9 @@ public class CordovaFragment extends Fragment {
      * Report an error to the host application. These errors are unrecoverable (i.e. the main resource is unavailable).
      * The errorCode parameter corresponds to one of the ERROR_* constants.
      *
-     * @param errorCode    The error code corresponding to an ERROR_* value.
-     * @param description  A String describing the error.
-     * @param failingUrl   The url that failed to load.
+     * @param errorCode   The error code corresponding to an ERROR_* value.
+     * @param description A String describing the error.
+     * @param failingUrl  The url that failed to load.
      */
     public void onReceivedError(final int errorCode, final String description, final String failingUrl) {
         final CordovaFragment me = this;
@@ -422,20 +466,21 @@ public class CordovaFragment extends Fragment {
     /*
      * Hook in Cordova for menu plugins
      */
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater menuInflater) {
-        if (appView != null) {
-            appView.getPluginManager().postMessage("onCreateOptionsMenu", menu);
-        }
-        super.onCreateOptionsMenu(menu, menuInflater);
-    }
+//    @Override
+//    public void onCreateOptionsMenu(Menu menu) {
+//        if (appView != null) {
+//            appView.getPluginManager().postMessage("onCreateOptionsMenu", menu);
+//        }
+//        return super.onCreateOptionsMenu(menu);
+//    }
 
-    @Override
-    public void onPrepareOptionsMenu(Menu menu) {
-        if (appView != null) {
-            appView.getPluginManager().postMessage("onPrepareOptionsMenu", menu);
-        }
-    }
+//    @Override
+//    public boolean onPrepareOptionsMenu(Menu menu) {
+//        if (appView != null) {
+//            appView.getPluginManager().postMessage("onPrepareOptionsMenu", menu);
+//        }
+//        return true;
+//    }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -461,13 +506,12 @@ public class CordovaFragment extends Fragment {
                 e.printStackTrace();
             }
         } else if ("exit".equals(id)) {
-//            getActivity().finish();
+            getActivity().finish();
         }
         return null;
     }
 
-    public void onSaveInstanceState(Bundle outState)
-    {
+    public void onSaveInstanceState(Bundle outState) {
         cordovaInterface.onSaveInstanceState(outState);
         super.onSaveInstanceState(outState);
     }
@@ -475,7 +519,7 @@ public class CordovaFragment extends Fragment {
     /**
      * Called by the system when the device configuration changes while your activity is running.
      *
-     * @param newConfig		The new device configuration
+     * @param newConfig The new device configuration
      */
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
@@ -510,4 +554,5 @@ public class CordovaFragment extends Fragment {
         }
 
     }
+
 }
