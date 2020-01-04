@@ -1,17 +1,52 @@
-## Installation
+# Installation
+```
+cordova plugin add cordova-plugin-android-fragmentactivity --save
+```
+
+or
 
 ```
-cordova plugin add cordova-android-fragments
-``` 
+phonegap plugin add cordova-plugin-android-fragmentactivity
+```
 
-## Usage
+# Usage
+No manual configuration required.
 
-Replace MainActivity in AndroidManifest.xml to "com.webileapps.fragments.MainActivity" and launch your application. 
+# How it works
+This plugin comes bundled with a CordovaFragment (which is a Fragment similar to CordovaActivity) and a MainActivity that extends AppCompatActivity and adds CordovaFragment using FragmentTransactions.
 
-## How it works
+AndroidManifest.xml is automatically updated to use the new MainActivity.
 
-This plugin comes bundled with a CordovaFragment (which is a Fragment similar to CordovaActivity) and a MainActivity that extends AppCompatActivity and adds CordovaFragment using FragmentTransactions.  
+# Credits
+Based on cordova-android-fragments (https://github.com/rajivnarayana/CordovaFragments)
 
-## TODO
+# History
+## 0.0.9
+- Fix missing import
 
-Create a hook that replaces activity name in AndroidManifesh.xml to launch MainActivity.java in our source directory
+## 0.0.8
+- Add onActivityResult callback
+
+## 0.0.7
+- Merge FrameLayout change
+- Merge ${mypackage} fix
+
+## 0.0.6
+- Fix stupid cordova-android 7 detection
+
+## 0.0.5
+- Attempt to avoid crash only seen on Galaxy J1 Ace (5.1.1)
+
+## 0.0.4
+- Experimental support for cordova-android 7
+- Increased dependency versions
+
+## 0.0.3
+- Added missing method to activity to handle permission request results
+
+## 0.0.2
+- Correct log message
+- Add history to README
+
+## 0.0.1
+Initial release

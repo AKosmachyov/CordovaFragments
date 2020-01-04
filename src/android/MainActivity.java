@@ -17,11 +17,12 @@
        under the License.
  */
 
-package com.webileapps.fragments;
+package ${mypackage};
+
+/** extends CordovaActivity */
 
 import android.app.FragmentTransaction;
-import android.graphics.Color;
-import android.os.Build;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 
@@ -29,7 +30,7 @@ public class MainActivity extends FragmentActivity
 {
     private static final String TAG = "MainActivity";
 
-    public CordovaFragment currentFragment;
+    public uk.co.reallysmall.cordova.plugin.fragment.CordovaFragment currentFragment;
 
     @Override
     public void onCreate(Bundle savedInstanceState)
@@ -37,14 +38,66 @@ public class MainActivity extends FragmentActivity
 
         super.onCreate(savedInstanceState);
 
-        //Set status bar color
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().setStatusBarColor(Color.BLACK);
-        }
-
-        currentFragment = new CordovaFragment();
+        currentFragment = new uk.co.reallysmall.cordova.plugin.fragment.CordovaFragment();
         FragmentTransaction ft = getFragmentManager().beginTransaction();
         ft.add(android.R.id.content, currentFragment);
         ft.commit();
+    }
+
+    /**
+     * Called when the system is about to start resuming a previous activity.
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        currentFragment.onPause();
+    }
+
+    /**
+     * Called when the activity will start interacting with the user.
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        currentFragment.onResume();
+    }
+
+    /**
+     * Called when the activity is no longer visible to the user.
+     */
+    @Override
+    protected void onStop() {
+        super.onStop();
+        currentFragment.onStop();
+    }
+
+    /**
+     * Called when the activity is becoming visible to the user.
+     */
+    @Override
+    protected void onStart() {
+        super.onStart();
+        currentFragment.onStart();
+    }
+
+    /**
+     * The final call you receive before your activity is destroyed.
+     */
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        currentFragment.onDestroy();
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode,resultCode,data);
+        currentFragment.onActivityResult(requestCode,resultCode,data);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[],
+                                            int[] grantResults) {
+        currentFragment.onRequestPermissionsResult(requestCode,permissions,grantResults);
     }
 }

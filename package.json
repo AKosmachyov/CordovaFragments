@@ -1,15 +1,17 @@
 {
-  "name": "cordova-android-fragments",
-  "version": "0.1.1",
+  "name": "cordova-plugin-android-fragmentactivity",
+  "version": "0.0.9",
   "description": "An android plugin that provides a replacement activity to the default activity to start a cordova application with MainActivity as a Fragment Activity. Useful when you want to add native views on top of cordova webview.",
   "cordova": {
-    "id": "cordova-android-fragments",
+    "id": "cordova-plugin-android-fragmentactivity",
     "platforms": [
       "android"
     ]
   },
-  "devDependencies": {
-    "plugman": "undefined1.1.0"
+  "devDependencies": {},
+  "dependencies": {
+    "lodash": "^4.17.5",
+    "xml2js": "^0.4.17"
   },
   "keywords": [
     "cordova",
@@ -20,8 +22,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rajivnarayana/CordovaFragments.git"
+    "url": "git+https://github.com/ReallySmallSoftware/cordova-plugin-android-fragmentactivity.git"
   },
-  "author": "",
+  "author": "Richard Windley",
   "license": "ISC"
 }
